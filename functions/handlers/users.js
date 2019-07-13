@@ -8,7 +8,11 @@ const firebaseConfig = require("../util/config");
 require("@firebase/auth");
 firebase.initializeApp(firebaseConfig);
 
-const { validateSignupData, validateLoginData } = require("../util/validators");
+const {
+  validateSignupData,
+  validateLoginData,
+  reduceUserDetails
+} = require("../util/validators");
 
 exports.signup = (req, res) => {
   const newUser = {
@@ -62,9 +66,9 @@ exports.signup = (req, res) => {
       if (err.code === "auth/email-already-in-use") {
         return res.status(400).json({ email: "Email is already in use" });
       } else if (err.code == undefined) {
-        console.log('Didn\'t send error log as json')
+        console.log("Didn't send error log as json");
       } else {
-        console.log(err.code)
+        console.log(err.code);
         return res.status(500).json({ error: err.code });
       }
     });
@@ -101,6 +105,16 @@ exports.login = (req, res) => {
     });
 };
 
+exports.addUserDetails = (req, res) => {
+  let userDetails = reduceUserDetails(req.body);
+
+  db.doc(`/users/${req.user.handle}`)
+    .update(userDetails)
+    .then(() => {
+      return res.json({ message: "Details added successfully" });
+    });
+};
+
 exports.uploadImage = (req, res) => {
   const BusBoy = require("busboy");
   const path = require("path");
@@ -113,7 +127,6 @@ exports.uploadImage = (req, res) => {
   let imageFileName;
 
   busboy.on("file", (fieldname, file, filename, encoding, mimetype) => {
-    console.log(fieldname, file, filename, encoding, mimetype);
     if (mimetype !== "image/jpeg" && mimetype !== "image/png") {
       return res.status(400).json({ error: "Wrong file type submitted" });
     }
@@ -125,16 +138,13 @@ exports.uploadImage = (req, res) => {
     ).toString()}.${imageExtension}`;
     const filepath = path.join(os.tmpdir(), imageFileName);
     imageToBeUploaded = { filepath, mimetype };
-    console.log("1");
 
     file.pipe(fs.createWriteStream(filepath));
-    console.log("2");
   });
   busboy.on("finish", () => {
-    console.log("3");
     admin
       .storage()
-      .bucket()
+      .bucket(`${config.storageBucket}`)
       .upload(imageToBeUploaded.filepath, {
         resumable: false,
         metadata: {
