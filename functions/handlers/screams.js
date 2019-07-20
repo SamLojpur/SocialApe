@@ -20,8 +20,8 @@ exports.getAllScreams = (req, res) => {
 exports.postScream = (req, res) => {
   console.log("posting");
 
-  if (req.method !== "POST") {
-    return res.status(400).json({ error: "Method not allowed" });
+  if (req.user.handle !== req.body.userHandle) {
+    return res.status(403).json({ error: "Unauthorized" });
   }
   const newScream = {
     body: req.body.body,
@@ -225,5 +225,28 @@ exports.unlikeScream = (req, res) => {
     })
     .catch(err => {
       res.status(500).json({ error: err.code });
+    });
+};
+
+exports.deleteScream = (req, res) => {
+  const document = db.doc(`/screams/${req.params.screamId}`);
+  document
+    .get()
+    .then(doc => {
+      if (!doc.exists) {
+        return res.status(404).json({ error: "Scream not found" });
+      }
+      if (doc.data().userHandle !== req.user.handle) {
+        return res.status(403).json({ error: "Unauthorized" });
+      } else {
+        return document.delete();
+      }
+    })
+    .then(() => {
+      res.json({ message: "Scream deleted successfully" });
+    })
+    .catch(err => {
+      console.error(err);
+      return res.status(500).json({ error: err.code });
     });
 };
